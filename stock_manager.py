@@ -79,7 +79,8 @@ class ItemTableModel(QAbstractTableModel):
             if data is None:
                 self.items = session.query(Item).filter(Item.type == self.item_type).all()
             else:
-                self.items = data
+                # Filter the provided data to match the current item type
+                self.items = [item for item in data if item.type == self.item_type]
         self.layoutChanged.emit()
     
     def rowCount(self, parent=QModelIndex()):

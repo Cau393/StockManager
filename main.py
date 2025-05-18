@@ -63,6 +63,23 @@ class EnhancedMainWindow(StockManagerWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
         
+        # Add search box to toolbar
+        search_widget = QWidget()
+        search_layout = QHBoxLayout(search_widget)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        
+        search_label = QLabel("Search:")
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search items...")
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.textChanged.connect(self.search_items)
+        
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_box)
+        
+        self.toolbar.addWidget(search_widget)
+        self.toolbar.addSeparator()
+        
         # Add dashboard tab
         self.dashboard = integrate_dashboard(self)
         
@@ -189,6 +206,49 @@ class EnhancedMainWindow(StockManagerWindow):
         self.shareable_model.load_data()
         self.dashboard.update_data()
         self.status_bar.showMessage("Data refreshed")
+        
+    def search_items(self, search_text):
+        """Filter items based on search text"""
+        if not search_text.strip():
+            # If search box is empty, show all items
+            self.standard_model.load_data()
+            self.shareable_model.load_data()
+            self.status_bar.showMessage("Showing all items")
+            return
+            
+        search_text = search_text.lower()
+        
+        # Filter standard items
+        with Session() as session:
+            # Search in standard items
+            standard_items = session.query(Item).filter(Item.type == 'standard').all()
+            filtered_standard = [item for item in standard_items if 
+                               search_text in item.name.lower() or 
+                               search_text in item.category.lower() or 
+                               search_text in str(item.quantity).lower() or
+                               search_text in str(item.min_threshold).lower()]
+            
+            # Search in shareable items
+            shareable_items = session.query(Item).filter(Item.type == 'shareable').all()
+            filtered_shareable = [item for item in shareable_items if 
+                                search_text in item.name.lower() or 
+                                search_text in item.category.lower() or 
+                                search_text in item.status.lower() or 
+                                (item.assigned_to and search_text in item.assigned_to.lower())]
+        
+        # Update models with filtered data
+        self.standard_model.load_data(filtered_standard)
+        self.shareable_model.load_data(filtered_shareable)
+        
+        # Update status bar
+        total_found = len(filtered_standard) + len(filtered_shareable)
+        self.status_bar.showMessage(f"Found {total_found} items matching '{search_text}'")
+        
+        # Switch to appropriate tab if only one type has results
+        if filtered_standard and not filtered_shareable:
+            self.tab_widget.setCurrentIndex(1)  # Standard Stock tab
+        elif filtered_shareable and not filtered_standard:
+            self.tab_widget.setCurrentIndex(2)  # Shareable Assets tab
     
     def show_about(self):
         """Show about dialog"""
